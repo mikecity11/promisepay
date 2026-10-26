@@ -4,3 +4,6 @@ node_modules/
 !.env.example
 .near-credentials/
 target/
+
+dist/
+build/

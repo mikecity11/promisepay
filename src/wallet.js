@@ -1,0 +1,21 @@
+import {setupWalletSelector} from '@near-wallet-selector/core';
+import {setupModal} from '@near-wallet-selector/modal-ui';
+import {setupMyNearWallet} from '@near-wallet-selector/my-near-wallet';
+import '@near-wallet-selector/modal-ui/styles.css';
+import {networkConfig} from './network.js';
+let selector,config;
+export async function connect(network){config=networkConfig(network,import.meta.env);if(!config.configured)throw Error(`${network}: contract and token addresses are not configured. No live deposits available.`);selector=await setupWalletSelector({network,modules:[setupMyNearWallet()]});setupModal(selector,{contractId:config.contractId}).show();return selector;}
+export async function disconnect(){if(selector?.isSignedIn())await(await selector.wallet()).signOut();selector=undefined;config=undefined;}
+export async function transact(methodName,args,deposit='0'){
+ if(!selector||!config||!selector.isSignedIn())throw Error('Connect a wallet first');
+ return (await selector.wallet()).signAndSendTransaction({receiverId:config.contractId,actions:[{type:'FunctionCall',params:{methodName,args,gas:'150000000000000',deposit}}]});
+}
+export async function fund(id,amount){if(!selector?.isSignedIn())throw Error('Connect a wallet first');return(await selector.wallet()).signAndSendTransaction({receiverId:config.tokenId,actions:[{type:'FunctionCall',params:{methodName:'ft_transfer_call',args:{receiver_id:config.contractId,amount,msg:JSON.stringify({agreement_id:id})},gas:'200000000000000',deposit:'1'}}]});}
+
+export async function view(methodName,args={}) {
+ if(!config?.configured)throw Error('Select and connect a configured network first');
+ const args_base64=btoa(unescape(encodeURIComponent(JSON.stringify(args))));
+ const response=await fetch(config.rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:'promisepay',method:'query',params:{request_type:'call_function',account_id:config.contractId,method_name:methodName,args_base64,finality:'final'}})});
+ const data=await response.json();if(data.error)throw Error(data.error.message||'RPC failed');return JSON.parse(new TextDecoder().decode(new Uint8Array(data.result.result)));
+}
+export function currentAccount(){return selector?.store.getState().accounts.find(a=>a.active)?.accountId||'';}

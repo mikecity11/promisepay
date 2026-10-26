@@ -5,12 +5,18 @@ Income allocation and automatic personal savings for freelance teams.
 ## Current status
 Pre-hackathon preparation, created October 26, 2026. Do not represent this work as created during November 1–14. Confirm eligibility with organizers before using pre-event implementation in a submission.
 
-Working locally: deterministic allocation engine, partial-payment accounting, percentage savings from the owner's remainder, personal savings mode, and savings top-ups. Run `npm test`.
+Implemented source: deterministic accounting; agreement acceptance; authenticated NEP-141 receiver; contributor claims; personal liquid savings; callback-based withdrawal restoration; testnet/mainnet configuration; wallet login and basic onchain forms. Neither network has a deployed contract. Yield is disabled.
 
-Not deployed: NEAR contract, wallet connection, real token payouts, yield deposits, withdrawals, cross-chain settlement. No real funds should be sent. The browser demo uses local simulated balances only.
+## Run
+`npm ci`, `npm test`, `npm run dev`. Production frontend: `npm run build`. Copy `.env.example` to `.env` and supply independently verified deployment/token accounts per network. Empty configuration blocks wallet actions. See docs/DEPLOYMENT.md.
 
-## Try it
-Run `npm start`, open http://localhost:3000, and simulate a $150 receipt. Observe $100 to editor, $50 to designer, $150 still owed, and no personal savings. Simulate $450 next: remaining team commitments are allocated, $15 goes to simulated savings, and $285 becomes available. Reload retains the local demo ledger. Reset removes only demo data.
+## Validation
+13 Node tests pass, including contract-method tests with a mocked NEAR host, exact token arithmetic, wrong-token and unaccepted-agreement rejection, withdrawal accounting, and network guards. The frontend production build passes. Mocked-host tests strip SDK decorators and do not test WASM, SDK access control, or real cross-contract execution.
+
+The contract WASM build is not yet verified: SDK installation could not extract its downloaded Binaryen toolchain in this environment. No deployment or real-wallet end-to-end claim is made. Sandbox and testnet verification are required next.
+
+## Demo
+The local simulation is separate from onchain balances. Simulate $150: $100 editor, $50 designer, $150 still owed. Simulate $450 next: remaining commitments allocated, $15 saved, $285 available. No yield is simulated. Real onchain forms require configured deployed accounts and explicit wallet signing.
 
 ## Allocation policy
 Recipients have fixed entitlements accepted before funding. Each receipt funds outstanding commitments proportionally, with largest-remainder integer rounding. Only the remainder belongs to the owner and is eligible for their chosen savings rate. Savings never reduce another recipient's entitlement. This prototype implements one policy, not arbitrary priority schedules.

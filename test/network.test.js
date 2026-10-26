@@ -1,0 +1,6 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {networkConfig,parseUnits} from '../src/network.js';import {distribute} from '../contract/ledger.js';
+test('unconfigured networks cannot enable live actions',()=>{assert.equal(networkConfig('testnet').configured,false);assert.equal(networkConfig('mainnet').configured,false);assert.throws(()=>networkConfig('devnet'));});
+test('mainnet rejects testnet accounts',()=>assert.throws(()=>networkConfig('mainnet',{VITE_MAINNET_CONTRACT_ID:'app.testnet',VITE_MAINNET_TOKEN_ID:'coin.near'})));
+test('amount parsing is exact beyond JS number precision',()=>{assert.equal(parseUnits('123456789012345.123456'),'123456789012345123456');assert.throws(()=>parseUnits('0.0000001'));assert.throws(()=>parseUnits('1e6'));});
+test('contract arithmetic conserves large token amounts',()=>{const n='1000000000000000000000000';const r=distribute(n,[{amount:'200000000000000000000000'}],['0'],500);assert.equal(BigInt(r.shares[0])+BigInt(r.savings)+BigInt(r.available),BigInt(n));});
+test('contract carries forward partial commitments',()=>{const c=[{amount:'200'},{amount:'100'}];const a=distribute('150',c,['0','0'],500);assert.deepEqual(a.shares,['100','50']);const b=distribute('450',c,a.shares,500);assert.deepEqual(b,{shares:['100','50'],savings:'15',available:'285'});});

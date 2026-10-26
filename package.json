@@ -1,1 +1,24 @@
-{"name":"promisepay","version":"0.1.0","private":true,"type":"module","scripts":{"test":"node --test","start":"python3 -m http.server 3000"},"engines":{"node":">=20"}}
+{
+  "name": "promisepay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@near-wallet-selector/core": "10.0.0",
+    "@near-wallet-selector/modal-ui": "10.0.0",
+    "@near-wallet-selector/my-near-wallet": "10.0.0"
+  },
+  "devDependencies": {
+    "vite": "7.3.1"
+  }
+}
