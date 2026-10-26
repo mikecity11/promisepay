@@ -4,7 +4,7 @@ Source supports both networks. Neither deployment exists yet. These are operator
 
 1. Create and fund a distinct deployment account on each network using your own wallet. Never commit keys.
 2. Verify the selected NEP-141 token contract and its decimals on that network. Register the PromisePay account with that token using the token's `storage_deposit`. Recipient accounts also need token storage registration before withdrawing.
-3. In `contract`, run `npm ci` and `npm run build`. Do not deploy a failed or untested build.
+3. Build using the recovery instructions in README.md, then run `node scripts/verify-contract.mjs`. Check contract/BUILD.json and the GitHub verification run. Local WASM compilation now passes; blockchain integration verification remains pending.
 4. Deploy `build/promisepay.wasm` and call `init({"token_id":"VERIFIED_TOKEN_ACCOUNT"})` in the same transaction from the deployment account. Initialization is restricted to the contract account; repeat initialization is rejected by the SDK.
 5. Configure the corresponding VITE_TESTNET_* or VITE_MAINNET_* addresses. No guessed default addresses are provided. Rebuild the frontend after changing environment variables.
 6. Call `create_agreement` with 0.1 NEAR attached for bounded agreement storage, a title, up to ten `{account_id,amount}` commitments (decimal strings in token base units), and savings_bps (500 = 5%). Personal mode uses an empty commitments array.

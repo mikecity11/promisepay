@@ -13,7 +13,12 @@ Implemented source: deterministic accounting; agreement acceptance; authenticate
 ## Validation
 13 Node tests pass, including contract-method tests with a mocked NEAR host, exact token arithmetic, wrong-token and unaccepted-agreement rejection, withdrawal accounting, and network guards. The frontend production build passes. Mocked-host tests strip SDK decorators and do not test WASM, SDK access control, or real cross-contract execution.
 
-The contract passes SDK source validation and JavaScript bundling, but WASM compilation is blocked: SDK installation could not extract its downloaded Binaryen toolchain, leaving the QuickJS compiler unavailable. No deployment or real-wallet end-to-end claim is made. Sandbox and testnet verification are required next.
+The compiler blocker is resolved. Contract WASM compilation and export validation pass. The build is 549,487 bytes; SHA-256 and source fingerprints are in contract/BUILD.json. The only callable exports are the nine intended public methods.
+
+Local sandbox execution was attempted but stopped before contract execution: near-sandbox requires 65,535 file descriptors and this environment permits 16,384. The sandbox scenario is preserved in integration/sandbox.mjs, and the GitHub verification workflow will attempt it on a standard runner. That scenario uses an authorized mock token account, not a complete NEP-141 token implementation, and does not prove successful token delivery. Public testnet/mainnet transactions remain unverified.
+
+## Reproduce contract build
+On Linux x86_64: `cd contract && npm ci --ignore-scripts`, then from the repository root run `bash scripts/install-toolchain.sh`, `npm run build --prefix contract`, and `node scripts/verify-contract.mjs`. The recovery installer downloads the SDK's pinned official compiler assets and verifies their SHA-256 hashes. CI also runs the frontend build, unit tests, and sandbox scenario. A successful CI run uploads the WASM as an artifact; no deployment or wallet secrets are used.
 
 ## Demo
 The local simulation is separate from onchain balances. Simulate $150: $100 editor, $50 designer, $150 still owed. Simulate $450 next: remaining commitments allocated, $15 saved, $285 available. No yield is simulated. Real onchain forms require configured deployed accounts and explicit wallet signing.

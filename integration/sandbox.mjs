@@ -1,0 +1,23 @@
+import {Worker} from 'near-workspaces';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+(async()=>{const worker=await Worker.init();try{
+ const root=worker.rootAccount;
+ const app=await root.createSubAccount('app');const token=await root.createSubAccount('coin');const owner=await root.createSubAccount('owner');const editor=await root.createSubAccount('editor');
+ await app.deploy(fileURLToPath(new URL('../contract/build/promisepay.wasm',import.meta.url)));
+ await app.call(app,'init',{token_id:token.accountId});
+ assert.equal((await app.view('get_config',{})).token_id,token.accountId);
+ const id=await owner.call(app,'create_agreement',{title:'Sandbox payment',commitments:[{account_id:editor.accountId,amount:'200'}],savings_bps:500},{attachedDeposit:'100000000000000000000000'});
+ const msg=JSON.stringify({agreement_id:id});
+ await assert.rejects(owner.call(app,'ft_on_transfer',{sender_id:owner.accountId,amount:'300',msg}));
+ await assert.rejects(token.call(app,'ft_on_transfer',{sender_id:owner.accountId,amount:'300',msg}));
+ await editor.call(app,'accept_agreement',{id});
+ await token.call(app,'ft_on_transfer',{sender_id:owner.accountId,amount:'150',msg});
+ assert.equal((await app.view('get_balances',{account_id:editor.accountId})).available,'150');
+ await token.call(app,'ft_on_transfer',{sender_id:owner.accountId,amount:'150',msg});
+ assert.equal((await app.view('get_balances',{account_id:owner.accountId})).savings,'5');
+ await assert.rejects(owner.call(app,'resolve_withdraw',{id:'0'}));
+ const result=await owner.call(app,'withdraw',{bucket:'savings',amount:'5'},{attachedDeposit:'1',gas:'150000000000000'});
+ assert.equal(result,false);assert.equal((await app.view('get_balances',{account_id:owner.accountId})).savings,'5');
+ console.log('SANDBOX PASS: initialization, persistence, token authentication, agreement acceptance, partial allocation, savings, private callback and failed-transfer restoration. Mock token account has no FT implementation; successful token delivery is not tested.');
+}finally{await worker.tearDown();}})().catch(e=>{console.error(e);process.exitCode=1});

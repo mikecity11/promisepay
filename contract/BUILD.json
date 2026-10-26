@@ -1,0 +1,18 @@
+{
+  "wasm_bytes": 549487,
+  "wasm_sha256": "5b85252e0a374846eea8c0e2cfed10356663774dfdb9986e5b421ce66411df8d",
+  "sdk": "near-sdk-js 2.0.0",
+  "source_sha256": {
+    "contract/contract.js": "95c7c33d0186d9cad115a82dfe61c5be1cd1e82fec9b560b9f8a493e65272429",
+    "contract/ledger.js": "8e0f12d541ef2bd979502f7f62ef04be300015e7e52f3c40e4a4b40a62758f41"
+  },
+  "validation": {
+    "unit_tests": 13,
+    "wasm_validation": "passed",
+    "public_exports": "9 expected methods only",
+    "sandbox": "blocked locally by host file-descriptor limit; GitHub workflow pending",
+    "testnet": "not deployed",
+    "mainnet": "not deployed",
+    "yield": "disabled"
+  }
+}

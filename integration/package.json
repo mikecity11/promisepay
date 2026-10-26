@@ -1,0 +1,1 @@
+{"name":"promisepay-sandbox-check","private":true,"type":"module","scripts":{"test":"node sandbox.mjs"},"dependencies":{"near-workspaces":"5.0.0"}}

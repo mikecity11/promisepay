@@ -4,7 +4,7 @@ const GAS=30000000000000n;
 function check(ok,message){if(!ok)throw Error(message);}
 function account(id){check(typeof id==='string'&&id.length>=2&&id.length<=64&&/^(([a-z0-9]+[-_])*[a-z0-9]+\.)*([a-z0-9]+[-_])*[a-z0-9]+$/.test(id),'Invalid account');}
 @NearBindgen({requireInit:true})
-export class PromisePay {
+class PromisePay {
  constructor(){this.token='';this.next=0;this.pendingNext=0;this.agreements=new LookupMap('a');this.balances=new LookupMap('b');this.pending=new LookupMap('p');}
  @initialize({})
  init({token_id}){check(near.predecessorAccountId()===near.currentAccountId(),'Initialize with deployment account');account(token_id);this.token=token_id;}

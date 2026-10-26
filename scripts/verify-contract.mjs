@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+const file = new URL('../contract/build/promisepay.wasm', import.meta.url);
+const bytes = fs.readFileSync(file);
+assert(WebAssembly.validate(bytes), 'Invalid WebAssembly');
+const module = new WebAssembly.Module(bytes);
+const functions = WebAssembly.Module.exports(module).filter(e=>e.kind==='function').map(e=>e.name).sort();
+const required=['accept_agreement','create_agreement','ft_on_transfer','get_agreement','get_balances','get_config','init','resolve_withdraw','withdraw'];
+for(const name of required)assert(functions.includes(name),`Missing ${name}`);
+assert(!functions.includes('credit'),'Internal accounting must not be exported');
+assert(!functions.includes('PromisePay'),'Contract class must not be an endpoint');
+console.log(JSON.stringify({bytes:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),exports:functions},null,2));
