@@ -1,10 +1,11 @@
 import {setupWalletSelector} from '@near-wallet-selector/core';
 import {setupModal} from '@near-wallet-selector/modal-ui';
+import {setupMeteorWallet} from '@near-wallet-selector/meteor-wallet';
 import {setupMyNearWallet} from '@near-wallet-selector/my-near-wallet';
 import '@near-wallet-selector/modal-ui/styles.css';
 import {networkConfig} from './network.js';
 let selector,config;
-export async function connect(network){config=networkConfig(network,import.meta.env);if(!config.configured)throw Error(`${network}: contract and token addresses are not configured. No live deposits available.`);selector=await setupWalletSelector({network,modules:[setupMyNearWallet()]});setupModal(selector,{contractId:config.contractId}).show();return selector;}
+export async function connect(network){config=networkConfig(network,import.meta.env);if(!config.configured)throw Error(`${network}: contract and token addresses are not configured. No live deposits available.`);selector=await setupWalletSelector({network,modules:[setupMeteorWallet(),setupMyNearWallet()]});setupModal(selector,{contractId:config.contractId}).show();return selector;}
 export async function disconnect(){if(selector?.isSignedIn())await(await selector.wallet()).signOut();selector=undefined;config=undefined;}
 export async function transact(methodName,args,deposit='0'){
  if(!selector||!config||!selector.isSignedIn())throw Error('Connect a wallet first');
@@ -19,3 +20,4 @@ export async function view(methodName,args={}) {
  const data=await response.json();if(data.error)throw Error(data.error.message||'RPC failed');return JSON.parse(new TextDecoder().decode(new Uint8Array(data.result.result)));
 }
 export function currentAccount(){return selector?.store.getState().accounts.find(a=>a.active)?.accountId||'';}
+
