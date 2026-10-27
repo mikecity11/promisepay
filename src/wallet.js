@@ -1,3 +1,4 @@
+import {actionCreators} from '@near-js/transactions';
 import {setupWalletSelector} from '@near-wallet-selector/core';
 import {setupModal} from '@near-wallet-selector/modal-ui';
 import {setupMeteorWallet} from '@near-wallet-selector/meteor-wallet';
@@ -9,9 +10,9 @@ export async function connect(network){config=networkConfig(network,import.meta.
 export async function disconnect(){if(selector?.isSignedIn())await(await selector.wallet()).signOut();selector=undefined;config=undefined;}
 export async function transact(methodName,args,deposit='0'){
  if(!selector||!config||!selector.isSignedIn())throw Error('Connect a wallet first');
- return (await selector.wallet()).signAndSendTransaction({receiverId:config.contractId,actions:[{type:'FunctionCall',params:{methodName,args,gas:'150000000000000',deposit}}]});
+ return (await selector.wallet()).signAndSendTransaction({receiverId:config.contractId,actions:[actionCreators.functionCall(methodName,args,150000000000000n,BigInt(deposit))]});
 }
-export async function fund(id,amount){if(!selector?.isSignedIn())throw Error('Connect a wallet first');return(await selector.wallet()).signAndSendTransaction({receiverId:config.tokenId,actions:[{type:'FunctionCall',params:{methodName:'ft_transfer_call',args:{receiver_id:config.contractId,amount,msg:JSON.stringify({agreement_id:id})},gas:'200000000000000',deposit:'1'}}]});}
+export async function fund(id,amount){if(!selector?.isSignedIn())throw Error('Connect a wallet first');return(await selector.wallet()).signAndSendTransaction({receiverId:config.tokenId,actions:[actionCreators.functionCall('ft_transfer_call',{receiver_id:config.contractId,amount,msg:JSON.stringify({agreement_id:id})},200000000000000n,1n)]});}
 
 export async function view(methodName,args={}) {
  if(!config?.configured)throw Error('Select and connect a configured network first');

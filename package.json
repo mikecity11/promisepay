@@ -14,6 +14,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@near-js/transactions": "^2.5.1",
     "@near-wallet-selector/core": "10.0.0",
     "@near-wallet-selector/meteor-wallet": "^10.0.0",
     "@near-wallet-selector/modal-ui": "10.0.0",
