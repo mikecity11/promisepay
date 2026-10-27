@@ -5,9 +5,28 @@ import {setupMeteorWallet} from '@near-wallet-selector/meteor-wallet';
 import {setupMyNearWallet} from '@near-wallet-selector/my-near-wallet';
 import '@near-wallet-selector/modal-ui/styles.css';
 import {networkConfig} from './network.js';
-let selector,config;
-export async function connect(network){config=networkConfig(network,import.meta.env);if(!config.configured)throw Error(`${network}: contract and token addresses are not configured. No live deposits available.`);selector=await setupWalletSelector({network,modules:[setupMeteorWallet(),setupMyNearWallet()]});setupModal(selector,{contractId:config.contractId}).show();return selector;}
-export async function disconnect(){if(selector?.isSignedIn())await(await selector.wallet()).signOut();selector=undefined;config=undefined;}
+let selector,config,subscription;
+export async function initWallet(network,onChange=()=>{}) {
+ const nextConfig=networkConfig(network,import.meta.env);
+ if(!nextConfig.configured) throw Error(`${network}: contract and token addresses are not configured. No live deposits available.`);
+ subscription?.unsubscribe();
+ selector=await setupWalletSelector({network,modules:[setupMeteorWallet(),setupMyNearWallet()]});
+ config=nextConfig;
+ subscription=selector.store.observable.subscribe(state=>{
+   const active=state.accounts.find(account=>account.active);
+   onChange(active?.accountId||'');
+ });
+ return selector;
+}
+export async function connect(network,onChange){
+ const walletSelector=selector||await initWallet(network,onChange);
+ if(!walletSelector.isSignedIn()) setupModal(walletSelector,{contractId:config.contractId}).show();
+ return walletSelector;
+}
+export async function disconnect(){
+ if(selector?.isSignedIn()) await(await selector.wallet()).signOut();
+ subscription?.unsubscribe();subscription=undefined;selector=undefined;config=undefined;
+}
 export async function transact(methodName,args,deposit='0'){
  if(!selector||!config||!selector.isSignedIn())throw Error('Connect a wallet first');
  return (await selector.wallet()).signAndSendTransaction({receiverId:config.contractId,actions:[actionCreators.functionCall(methodName,args,150000000000000n,BigInt(deposit))]});
