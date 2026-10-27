@@ -5,17 +5,17 @@ Income allocation and automatic personal savings for freelance teams.
 ## Current status
 Pre-hackathon preparation, created October 26, 2026. Do not represent this work as created during November 1–14. Confirm eligibility with organizers before using pre-event implementation in a submission.
 
-Implemented source: deterministic accounting; agreement acceptance; authenticated NEP-141 receiver; contributor claims; personal liquid savings; callback-based withdrawal restoration; testnet/mainnet configuration; wallet login and basic onchain forms. Neither network has a deployed contract. Yield is disabled.
+Implemented source: deterministic accounting; agreement acceptance; authenticated NEP-141 receiver; contributor claims; personal liquid savings; callback-based withdrawal restoration; testnet/mainnet configuration; wallet login and basic onchain forms. Testnet contract: `promisepay-mikecity.testnet`, initialized with Circle testnet USDC. [Deployment transaction](https://testnet.nearblocks.io/txns/13yVg9X8un3KhxqxaL91BS6ZoJeMew5nzhSX1gKgPkXe). Mainnet has no deployed contract. Yield is disabled.
 
 ## Run
-`npm ci`, `npm test`, `npm run dev`. Production frontend: `npm run build`. Copy `.env.example` to `.env` and supply independently verified deployment/token accounts per network. Empty configuration blocks wallet actions. See docs/DEPLOYMENT.md.
+`npm ci`, `npm test`, `npm run dev`. Production frontend: `npm run build`. Copy `.env.example` to `.env` to use the verified testnet contract and token accounts. Mainnet accounts must be independently verified and configured before use. Empty configuration blocks wallet actions. See docs/DEPLOYMENT.md.
 
 ## Validation
 13 Node tests pass, including contract-method tests with a mocked NEAR host, exact token arithmetic, wrong-token and unaccepted-agreement rejection, withdrawal accounting, and network guards. The frontend production build passes. Mocked-host tests strip SDK decorators and do not test WASM, SDK access control, or real cross-contract execution.
 
 The compiler blocker is resolved. Contract WASM compilation and export validation pass. The build is 549,487 bytes; SHA-256 and source fingerprints are in contract/BUILD.json. The only callable exports are the nine intended public methods.
 
-Local sandbox execution was attempted but stopped before contract execution: near-sandbox requires 65,535 file descriptors and this environment permits 16,384. The sandbox scenario is preserved in integration/sandbox.mjs, and the GitHub verification workflow will attempt it on a standard runner. That scenario uses an authorized mock token account, not a complete NEP-141 token implementation, and does not prove successful token delivery. Public testnet/mainnet transactions remain unverified.
+Local sandbox execution was attempted but stopped before contract execution: near-sandbox requires 65,535 file descriptors and this environment permits 16,384. The sandbox scenario is preserved in integration/sandbox.mjs, and the GitHub verification workflow will attempt it on a standard runner. That scenario uses an authorized mock token account, not a complete NEP-141 token implementation, and does not prove successful token delivery. The user confirmed testnet deployment and `get_config`; end-to-end token transfers and mainnet transactions remain unverified.
 
 ## Reproduce contract build
 On Linux x86_64: `cd contract && npm ci --ignore-scripts`, then from the repository root run `bash scripts/install-toolchain.sh`, `npm run build --prefix contract`, and `node scripts/verify-contract.mjs`. The recovery installer downloads the SDK's pinned official compiler assets and verifies their SHA-256 hashes. CI also runs the frontend build, unit tests, and sandbox scenario. A successful CI run uploads the WASM as an artifact; no deployment or wallet secrets are used.
