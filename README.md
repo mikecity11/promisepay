@@ -47,3 +47,20 @@ RHEA is a candidate, not an active integration. Verify token contracts, deposit/
 ## Limits
 Only funds explicitly routed through the app can be allocated. No arbitrary wallet interception. Client nonpayment remains possible. An allocation is an accounting entitlement until a real payout succeeds. Demo amounts are simulated. Workspace balances represent actual testnet tokens with no real-money value.
 
+
+
+## Optional RHEA savings lending (testnet)
+
+Savings held in PromisePay remain liquid and do not earn interest. The Savings screen offers a separate, wallet-owned RHEA supply position. This is an explicit two-step flow, not automatic yield routing:
+
+1. Register the connected account with RHEA if needed (live storage minimum; currently 0.1 test NEAR).
+2. Withdraw the chosen PromisePay savings amount to that wallet. Wait for FINAL and a successful withdrawal callback.
+3. Choose Continue deposit; separately approve USDC `ft_transfer_call` to RHEA with an empty message. Confirm FINAL, no receipt failures, and the full amount consumed.
+4. Read `get_account` supplied balance and live `get_asset` supply APR. APR changes and is not a promise of returns. Balances include outside-app supplies; they are not an app-specific earnings calculation.
+5. Withdraw with RHEA `execute` / `Withdraw`. Confirm a matching NEP-141 USDC transfer before reporting success. Returned funds are in the wallet, not the PromisePay ledger. Withdrawals depend on market liquidity.
+
+Pinned market: `contract.1689937928.burrow.testnet`; only the configured Circle test USDC is enabled. Its extra precision is read from the live asset config (currently 12). The app does not borrow or enable collateral. Mainnet remains disabled. Continuation reminders are local to the browser/account/network; clearing browser storage removes the reminder but does not move or lose wallet funds.
+
+Primary references: [RHEA SDK](https://github.com/burrowHQ/burrow-sdk-python), [contract API](https://github.com/NearDeFi/burrowland/blob/main/contract/API.md), [token receiver implementation](https://github.com/NearDeFi/burrowland/blob/main/contract/src/fungible_token.rs), [RHEA withdrawal implementation](https://github.com/burrowHQ/burrow-cash/blob/main/store/actions/withdraw.ts).
+
+Validation: automated precision, deposit-refund, transfer-proof and DOM review tests; read-only live market/config checks. A real wallet deposit and withdrawal must still be tested by the user; automated tests do not prove protocol safety. Use test tokens only.

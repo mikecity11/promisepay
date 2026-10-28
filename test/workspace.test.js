@@ -6,9 +6,10 @@ import { webcrypto } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 import * as experience from '../src/experience.js';
 import * as network from '../src/network.js';
+import * as rhea from '../src/rhea.js';
 
 const plans=[{id:'0',title:'Independent income',owner:'owner.testnet',commitments:[],accepted:[],paid:[],savings_bps:500},{id:'1',title:'Video project',owner:'owner.testnet',commitments:[{account_id:'teammate.testnet',amount:'1000000'}],accepted:[],paid:['0'],savings_bps:500}];
-async function workspace(account='owner.testnet') {
+async function workspace(account='owner.testnet',lending=false) {
   const dom=new JSDOM(await readFile(new URL('../index.html',import.meta.url),'utf8'),{url:'https://workspace.example/#dashboard',runScripts:'outside-only'});
   const w=dom.window;let listener;const requests=[];
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
@@ -18,15 +19,19 @@ async function workspace(account='owner.testnet') {
   Object.defineProperty(w,'crypto',{value:webcrypto});
   const wallet={
     initWallet:async(_,cb)=>{listener=cb;cb(account);},connect:async()=>{},disconnect:async()=>{account='';listener('');},currentAccount:()=>account,
-    getConfig:()=>({contractId:'contract.testnet',tokenId:'usdc.testnet',explorer:'https://testnet.nearblocks.io'}),
+    getConfig:()=>({contractId:'contract.testnet',tokenId:lending?rhea.USDC:'usdc.testnet',explorer:'https://testnet.nearblocks.io'}),
     view:async(method,args)=>method==='get_agreement'?structuredClone(plans[Number(args.id)]||null):{available:'950000',savings:'50000'},
-    tokenView:async()=>({total:'1250000000000000000000',available:'0'}),
+    tokenView:async(method)=>{
+      if(lending&&method==='get_asset')return {token_id:rhea.USDC,config:{extra_decimals:12,can_deposit:true,can_withdraw:true},supply_apr:'0.0000022283666'};
+      if(lending&&method==='get_account')return {supplied:[{token_id:rhea.USDC,balance:'1000000000000000000'}]};
+      return {total:'1250000000000000000000',available:'0'};
+    },
     transact:async(...args)=>{requests.push(args);return {transaction:{hash:'mock-hash',signer_id:account},status:{SuccessValue:'IjIi'},receipts_outcome:[]};},
     fund:async(...args)=>{requests.push(args);return {transaction:{hash:'mock-hash',signer_id:account}};},send:async()=>{},finalize:async r=>r,
   };
   const context=dom.getInternalVMContext();
   const synthetic=(exports)=>new vm.SyntheticModule(Object.keys(exports),function(){for(const [key,value] of Object.entries(exports))this.setExport(key,value);},{context});
-  const modules={ './polyfills.js':synthetic({}),'./wallet.js':synthetic(wallet),'./network.js':synthetic(network),'./experience.js':synthetic(experience) };
+  const modules={ './polyfills.js':synthetic({}),'./wallet.js':synthetic(wallet),'./network.js':synthetic(network),'./experience.js':synthetic(experience),'./rhea.js':synthetic(rhea) };
   const app=new vm.SourceTextModule(await readFile(new URL('../src/app.js',import.meta.url),'utf8'),{context});
   await app.link(specifier=>modules[specifier]);await app.evaluate();
   const settle=async()=>{for(let i=0;i<15;i++)await new Promise(r=>setImmediate(r));};
@@ -87,4 +92,20 @@ test('payment uses normal USDC input and reviews the savings split before wallet
     assert.match(app.doc.getElementById('reviewContent').textContent,/1.00 USDC/);assert.match(app.doc.getElementById('reviewContent').textContent,/0.95 USDC/);
     assert.equal(app.requests.length,0);
   }finally{app.close();}
+});
+
+test('RHEA shows separate live lending balance and reviews the first step without sending funds',async()=>{
+  const app=await workspace('owner.testnet',true);try{
+    assert.equal(app.doc.getElementById('rheaBalance').textContent,'1.00 USDC');
+    assert.match(app.doc.getElementById('rheaRate').textContent,/0.000223%/);
+    app.doc.getElementById('earnStart').click();await app.settle();
+    assert.equal(app.doc.getElementById('earnDialog').open,true);
+    assert.equal(app.doc.getElementById('earnAmount').value,'0.05');
+    app.doc.getElementById('earnForm').dispatchEvent(new app.w.Event('submit',{cancelable:true,bubbles:true}));await app.settle();
+    assert.match(app.doc.getElementById('reviewContent').textContent,/does not start earning/);
+    assert.equal(app.requests.length,0);
+  }finally{app.close();}
+});
+test('RHEA is disabled for an unverified token configuration',async()=>{
+  const app=await workspace();try{assert.equal(app.doc.getElementById('earnStart').disabled,true);assert.equal(app.doc.getElementById('earnWithdraw').disabled,true);}finally{app.close();}
 });

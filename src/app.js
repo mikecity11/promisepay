@@ -1,4 +1,5 @@
 import './polyfills.js';
+import {RHEA,USDC,internalAmount,suppliedAmount,supplyConfirmed,withdrawalConfirmed,aprLabel} from './rhea.js';
 import { initWallet, connect, disconnect, currentAccount, getConfig, view, tokenView, transact, fund, send, finalize } from './wallet.js';
 import { parseUnits } from './network.js';
 import { formatAmount, editableAmount, savingsBps, buildCommitments, allocationPreview, planReady, transactionFailure, transactionEvents, friendlyError } from './experience.js';
@@ -29,7 +30,7 @@ function onAccount(account) {
   $('connect').textContent=account?'Disconnect wallet':'Connect wallet ↗';
   $('connect').title=account?`Connected as ${account}. Click to disconnect.`:'Connect your NEAR wallet';
   $('welcomeText').textContent=account?`Connected as ${account}. Your balances and plans update automatically.`:'Your money, your commitments, and your next step.';
-  renderBalances(); renderPlans(); renderActivity();
+  renderBalances(); renderPlans(); renderActivity();resetRhea();
   if(account){if(location.hash==='#home'||!location.hash)location.hash='dashboard';refreshData();}
 }
 function renderBalances() {
@@ -65,7 +66,7 @@ async function refreshData({more=false}={}) {
     state.plans=[...new Map(all.map(p=>[p.id,p])).values()];state.scanEnd=result.end;state.scanComplete=result.complete;
   }else{plansFailed=true;}
   if(tasks[2].status==='fulfilled')state.tokenRegistered=tasks[2].value!==null;
-  state.loading=false;renderBalances();renderPlans();
+  state.loading=false;renderBalances();renderPlans();refreshRhea();
   if(balancesFailed)$('balanceStatus').textContent='Couldn’t update balances. Check your connection and refresh.';
   if(plansFailed)$('discoveryNote').textContent='We couldn’t load your plans from NEAR. Refresh to try again.';
 }
@@ -121,7 +122,7 @@ function reviewRequest({title,lines,note,run}) {
   state.review={run,account:state.account,network:state.network};openDialog('reviewDialog');
 }
 function explorerLink(hash){return `${getConfig().explorer}/txns/${encodeURIComponent(hash)}`;}
-async function perform({request,title,successMessage,kind,amount,planId,validate}) {
+async function perform({request,title,successMessage,kind,amount,planId,validate,onConfirmed}) {
   if(state.busy)return;
   if(!state.review||state.review.account!==state.account||state.review.network!==state.network){notice('Your wallet changed. Review the request again.');closeDialog('reviewDialog');return;}
   const account=state.account,network=state.network;
@@ -136,6 +137,7 @@ async function perform({request,title,successMessage,kind,amount,planId,validate
     raw=await finalize(raw);
     const failure=transactionFailure(raw);if(failure)throw Error(failure);
     if(validate)validate(raw);
+    if(onConfirmed)onConfirmed(raw,account,network);
     saveActivity({account,network,title,amount,kind,hash,planId,date:new Date().toISOString(),success:true});
     $('progressTitle').textContent=successMessage;$('progressKicker').textContent='Confirmed on NEAR';$('progressIcon').textContent='✓';$('progressMessage').textContent='Your balances and plans are being updated. You can find this transaction in Activity.';
     if(kind==='create'){
@@ -199,6 +201,65 @@ async function openWithdrawal(bucket) {
 function showDemo(){
   try{const amount=parseUnits($('demoPayment').value.trim(),6);const teamInput=$('demoTeam').value.trim();const team=/^0(\.0*)?$/.test(teamInput)?'0':parseUnits(teamInput,6);const split=allocationPreview(amount,{commitments:[{amount:team}],paid:['0'],savings_bps:savingsBps($('demoSavings').value)});splitSummary($('demoSplit'),split);$('demoError').textContent='';}catch(e){$('demoError').textContent=friendlyError(e);}
 }
+
+
+let rheaState={asset:null,supplied:'0',registered:false,mode:'start'};
+function pendingKey(account=state.account,network=state.network){return `promisepay-rhea-pending:${network}:${account}`;}
+function pendingAmount(){try{return localStorage.getItem(pendingKey())||'';}catch{return '';}}
+function resetRhea(){rheaState.asset=null;rheaState.supplied='0';$('rheaBalance').textContent='—';$('rheaRate').textContent='—';$('rheaStatus').textContent='Connect your wallet to check RHEA.';for(const id of ['earnStart','earnWithdraw'])$(id).disabled=true;$('earnSupply').hidden=true;}
+async function refreshRhea(){
+  const account=state.account,generation=state.generation;
+  if(!account||state.network!=='testnet'||getConfig().tokenId!==USDC){resetRhea();return;}
+  try{
+    const [asset,position,storage]=await Promise.all([tokenView('get_asset',{token_id:USDC},RHEA),tokenView('get_account',{account_id:account},RHEA),tokenView('storage_balance_of',{account_id:account},RHEA)]);
+    if(generation!==state.generation)return;
+    if(asset.token_id!==USDC||!asset.config||!Number.isInteger(asset.config.extra_decimals))throw Error('This lending market is unavailable.');
+    const supplied=suppliedAmount(position,USDC,asset.config.extra_decimals);
+    rheaState={...rheaState,asset,supplied,registered:!!storage};
+    $('rheaBalance').textContent=usdc(supplied);$('rheaRate').textContent=aprLabel(asset.supply_apr);
+    const pending=pendingAmount();$('earnSupply').hidden=!pending;$('earnSupply').disabled=state.busy||!asset.config.can_deposit;
+    $('earnStart').disabled=state.busy||!state.loaded||BigInt(state.balances.savings)===0n||!asset.config.can_deposit||!!pending;
+    $('earnWithdraw').disabled=state.busy||BigInt(supplied)===0n||!asset.config.can_withdraw;
+    $('rheaStatus').textContent=pending?`${usdc(pending)} moved to your wallet for lending. Continue the deposit when ready.`:'Live testnet market. Rates change; returns are not guaranteed.';
+  }catch(e){if(generation===state.generation){resetRhea();$('rheaStatus').textContent='RHEA could not be loaded. Refresh before continuing.';}}
+}
+async function openEarn(mode){
+  if(!requireAccount()||state.busy)return;
+  await refreshRhea();if(!rheaState.asset)return;
+  rheaState.mode=mode;
+  if(mode!=='withdraw'&&!rheaState.registered){
+    try{const bounds=await tokenView('storage_balance_bounds',{},RHEA);
+      const cost=String(Number(bounds.min)/1e24);
+      reviewRequest({title:'Set up your RHEA account.',lines:[['Wallet',state.account],['One-time storage deposit',`${cost} test NEAR`]],note:'This registers your own account with RHEA. No USDC moves. After confirmation, choose Start earning again.',run:()=>perform({request:()=>send(RHEA,'storage_deposit',{account_id:state.account,registration_only:true},bounds.min),title:'Registered with RHEA',successMessage:'Your RHEA account is ready.',kind:'rhea-register'})});
+    }catch(e){notice(friendlyError(e));}return;
+  }
+  const amount=mode==='withdraw'?rheaState.supplied:mode==='supply'?pendingAmount():state.balances.savings;
+  if(!amount||BigInt(amount)<=0n){notice('There is no balance for this step.');return;}
+  $('earnTitle').textContent=mode==='withdraw'?'Withdraw from RHEA.':mode==='supply'?'Complete your RHEA deposit.':'Move savings to your wallet.';
+  $('earnDescription').textContent=mode==='withdraw'?'Funds return to your wallet. Availability depends on market liquidity.':mode==='supply'?'Approve lending from your wallet to your own RHEA position. The rate is variable.':'Step 1 of 2. Withdraw savings to your wallet. Then choose Continue deposit to supply them to RHEA.';
+  $('earnAmount').value=editableAmount(amount);$('earnError').textContent='';openDialog('earnDialog');
+}
+$('earnStart').onclick=()=>openEarn('start');$('earnSupply').onclick=()=>openEarn('supply');$('earnWithdraw').onclick=()=>openEarn('withdraw');
+$('earnForm').onsubmit=async event=>{
+  event.preventDefault();try{
+    const amount=parseUnits($('earnAmount').value.trim(),6),mode=rheaState.mode,account=state.account,network=state.network,asset=rheaState.asset;
+    if(!asset||network!=='testnet'||getConfig().tokenId!==USDC)throw Error('Choose the supported testnet USDC market.');
+    if(mode==='start'){
+      if(BigInt(amount)>BigInt(state.balances.savings))throw Error('Choose an amount within your savings balance.');
+      reviewRequest({title:'Step 1 · Move savings to your wallet.',lines:[['Amount',usdc(amount)],['Destination',account]],note:'This step does not start earning. After it confirms, select Continue deposit and approve the RHEA transfer. If you stop, the funds stay in your wallet.',run:()=>perform({request:()=>transact('withdraw',{bucket:'savings',amount},'1'),title:'Moved savings to wallet for lending',successMessage:'Step 1 done. Continue your deposit.',kind:'rhea-prepare',amount,validate:r=>{if(!transactionEvents(r).some(e=>e.event==='withdrawal_resolved'&&e.success===true))throw Error('Savings withdrawal was not confirmed. Do not deposit yet.');},onConfirmed:(_,a,n)=>localStorage.setItem(pendingKey(a,n),amount)})});
+    }else if(mode==='supply'){
+      if(!asset.config.can_deposit)throw Error('RHEA deposits are paused.');
+      const walletBalance=await tokenView('ft_balance_of',{account_id:account},USDC);
+      if(state.account!==account||state.network!==network)throw Error('Your wallet changed. Review the deposit again.');
+      if(BigInt(amount)>BigInt(walletBalance))throw Error('Your wallet does not have enough USDC for this deposit.');
+      if(BigInt(amount)>BigInt(pendingAmount()||'0'))throw Error('Choose an amount within your pending deposit.');
+      reviewRequest({title:'Step 2 · Supply to RHEA.',lines:[['Amount',usdc(amount)],['Position owner',account],['Variable APR',aprLabel(asset.supply_apr)]],note:'This lends test USDC to RHEA. Protocol risks apply and withdrawal depends on liquidity. No borrowing is requested.',run:()=>perform({request:()=>send(USDC,'ft_transfer_call',{receiver_id:RHEA,amount,msg:''},'1',250000000000000n),title:'Supplied savings to RHEA',successMessage:'Your RHEA deposit is confirmed.',kind:'rhea-supply',amount,validate:r=>{if(!supplyConfirmed(r,amount))throw Error('The full RHEA deposit was not confirmed. Check your wallet and RHEA balances before retrying.');},onConfirmed:(_,a,n)=>{const key=pendingKey(a,n),left=BigInt(localStorage.getItem(key)||'0')-BigInt(amount);if(left>0n)localStorage.setItem(key,left.toString());else localStorage.removeItem(key);}})});
+    }else{
+      if(!asset.config.can_withdraw||BigInt(amount)>BigInt(rheaState.supplied))throw Error('Choose an amount within your withdrawable supplied balance.');
+      reviewRequest({title:'Withdraw supplied savings.',lines:[['Amount',usdc(amount)],['Send to',account]],note:'Funds return to your wallet, separate from your PromisePay savings. Market liquidity may limit withdrawals. A network fee applies.',run:()=>perform({request:()=>send(RHEA,'execute',{actions:[{Withdraw:{token_id:USDC,amount:internalAmount(amount,asset.config.extra_decimals)}}]},'1',250000000000000n),title:'Withdrew from RHEA',successMessage:'RHEA funds returned to your wallet.',kind:'rhea-withdraw',amount,validate:r=>{if(!withdrawalConfirmed(r,account,amount))throw Error('A matching USDC transfer was not confirmed. Check the updated RHEA balance and transaction details before retrying.');}})});
+    }
+  }catch(e){$('earnError').textContent=friendlyError(e);}
+};
 
 $('connect').onclick=async()=>{if(state.busy)return;if(state.account){try{await disconnect();onAccount('');}catch(e){notice(friendlyError(e));}}else connectWallet();};
 document.querySelectorAll('[data-connect]').forEach(b=>b.onclick=connectWallet);
