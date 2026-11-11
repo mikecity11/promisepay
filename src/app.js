@@ -76,7 +76,7 @@ function emptyState(title, description, action) {
 }
 function makePlanCard(plan) {
   const own=plan.owner===state.account,ready=planReady(plan),invite=!own&&!plan.accepted.includes(state.account);
-  const card=node('article',undefined,'plan-card');const top=node('div',undefined,'plan-card-top');const title=node('div');title.append(node('div',plan.commitments.length?'Team plan':'Personal plan','plan-type'),node('h3',plan.title));top.append(title,node('span',invite?'Your invitation':ready?'Ready for payments':'Waiting for teammates',`status-pill${!ready?' pending':''}`));
+  const card=node('article',undefined,'plan-card');const top=node('div',undefined,'plan-card-top');const title=node('div');title.append(node('div',plan.commitments.length?'Team payout plan':'Reserve-only plan','plan-type'),node('h3',plan.title));top.append(title,node('span',invite?'Your invitation':ready?'Ready for payments':'Waiting for teammates',`status-pill${!ready?' pending':''}`));
   const desc=own?`${plan.savings_bps/100}% saved from your remainder${plan.commitments.length?` · ${plan.commitments.length} teammate${plan.commitments.length===1?'':'s'}`:''}`:`Created by ${plan.owner}`;
   const foot=node('div',undefined,'plan-card-foot');foot.append(node('span',own?'Created by you':'Shared with you'),button(invite?'Review invitation →':'Open plan →','btn secondary',()=>showPlan(plan.id)));card.append(top,node('p',desc),foot);return card;
 }
@@ -92,7 +92,7 @@ function renderPlans() {
     const parent=$(target);parent.replaceChildren();
     if(!state.account)parent.append(emptyState('Your plans belong here.','Connect your wallet and we’ll find the plans you’ve created or been invited to.',{text:'Connect wallet',run:connectWallet}));
     else if(!relevant.length&&state.loading)parent.append(node('p','Finding your plans…','loading-state shimmer'));
-    else if(!relevant.length)parent.append(emptyState('Make room for your next chapter.','Start with a simple savings plan, or bring your team along.',{text:'Create your first plan +',run:openCreate}));
+    else if(!relevant.length)parent.append(emptyState('Give your next payment a plan.','Create a business reserve plan or add team and contractor commitments.',{text:'Create your first plan +',run:openCreate}));
     else for(const p of relevant.slice().reverse().slice(0,limit))parent.append(makePlanCard(p));
   }
   $('loadMorePlans').hidden=!state.account||state.scanComplete||state.loading;
@@ -175,7 +175,7 @@ function showPlan(id) {
   for(let i=0;i<plan.commitments.length;i++){
     const c=plan.commitments[i],paid=BigInt(plan.paid[i]||'0'),remaining=BigInt(c.amount)-paid;const row=node('div',undefined,'plan-person');const person=node('div');person.append(node('strong',c.account_id===state.account?'You':c.account_id),node('small',`${plan.accepted.includes(c.account_id)?'Accepted':'Awaiting acceptance'} · ${usdc(paid)} allocated`));row.append(person,node('b',`${usdc(remaining)} remaining`));box.append(row);
   }
-  if(!plan.commitments.length)box.append(node('p','A personal savings plan. Each payment is split between your savings and available balance.','review-description'));
+  if(!plan.commitments.length)box.append(node('p','A reserve-only plan. Each payment is split between your reserve and available balance.','review-description'));
   const actions=node('div',undefined,'plan-actions');const participant=plan.commitments.some(c=>c.account_id===state.account);
   if(participant&&!plan.accepted.includes(state.account))actions.append(button('Review & accept plan →','btn primary',()=>reviewRequest({title:'Accept this plan?',lines:[['Plan',plan.title],['Created by',plan.owner],['Your commitment',usdc(plan.commitments.find(c=>c.account_id===state.account).amount)],['Wallet',state.account]],note:'Accepting records your agreement to participate. It does not send USDC. A small test NEAR network fee applies.',run:()=>perform({request:()=>transact('accept_agreement',{id:plan.id}),title:`Accepted ${plan.title}`,successMessage:'You’re part of the plan.',kind:'accept',planId:plan.id})})));
   if(planReady(plan)&&plan.owner===state.account)actions.append(button('Add a payment ↗','btn primary',()=>openPayment(plan)));
@@ -189,7 +189,7 @@ function openPayment(plan) {
   state.selectedPlan=plan.id;closeDialog('detailDialog');$('paymentForm').reset();$('paymentError').textContent='';$('paymentPlanName').textContent=plan.title;$('paymentPreview').replaceChildren();openDialog('paymentDialog');
 }
 function splitSummary(target, split) {
-  target.replaceChildren();for(const [key,title,description] of [['team','Team commitments','Allocated before your share'],['savings','Set aside for you','Saved from your remainder'],['available','Yours to spend','Available in PromisePay']]){const row=node('div',undefined,'split-line');const left=node('div');left.append(node('strong',title),node('small',description));row.append(left,node('b',usdc(split[key])));target.append(row);}
+  target.replaceChildren();for(const [key,title,description] of [['team','Team commitments','Allocated before your share'],['savings','Business reserve','Reserved from your remainder'],['available','Available working capital','Available in PromisePay']]){const row=node('div',undefined,'split-line');const left=node('div');left.append(node('strong',title),node('small',description));row.append(left,node('b',usdc(split[key])));target.append(row);}
 }
 function previewPayment(){try{const amount=parseUnits($('paymentAmount').value.trim(),6);const plan=state.plans.find(p=>p.id===state.selectedPlan);if(plan)splitSummary($('paymentPreview'),allocationPreview(amount,plan));$('paymentError').textContent='';}catch{$('paymentPreview').replaceChildren();}}
 async function openWithdrawal(bucket) {
@@ -293,7 +293,7 @@ $('paymentForm').onsubmit=event=>{
   event.preventDefault();try{
     const plan=state.plans.find(p=>p.id===state.selectedPlan);if(!plan||!planReady(plan))throw Error('Refresh this plan and wait for all teammates to accept.');
     const amount=parseUnits($('paymentAmount').value.trim(),6);const split=allocationPreview(amount,plan);
-    reviewRequest({title:'A payment with a plan.',lines:[['Plan',plan.title],['Total payment',usdc(amount)],['Team commitments',usdc(split.team)],['Your savings',usdc(split.savings)],['Yours to spend',usdc(split.available)],['From wallet',state.account]],note:'This sends test USDC from your wallet to the plan. A small test NEAR network fee applies. The split is an estimate; the contract uses the latest plan state.',run:()=>perform({request:()=>fund(plan.id,amount),title:`Payment to ${plan.title}`,successMessage:'Your payment found its place.',kind:'fund',amount,planId:plan.id,validate:result=>{if(!transactionEvents(result).some(e=>e.event==='allocated'&&e.agreement_id===plan.id))throw Error('No allocation was confirmed. Your USDC may have been refunded. Check the transaction details before retrying.');}})});
+    reviewRequest({title:'A payment with a plan.',lines:[['Plan',plan.title],['Total payment',usdc(amount)],['Team commitments',usdc(split.team)],['Your savings',usdc(split.savings)],['Available working capital',usdc(split.available)],['From wallet',state.account]],note:'This sends test USDC from your wallet to the plan. A small test NEAR network fee applies. The split is an estimate; the contract uses the latest plan state.',run:()=>perform({request:()=>fund(plan.id,amount),title:`Payment to ${plan.title}`,successMessage:'Your payment found its place.',kind:'fund',amount,planId:plan.id,validate:result=>{if(!transactionEvents(result).some(e=>e.event==='allocated'&&e.agreement_id===plan.id))throw Error('No allocation was confirmed. Your USDC may have been refunded. Check the transaction details before retrying.');}})});
   }catch(e){$('paymentError').textContent=friendlyError(e);}
 };
 $('withdrawAll').onclick=()=>{$('withdrawAmount').value=editableAmount(state.balances[state.bucket]);};

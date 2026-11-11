@@ -13,12 +13,12 @@
 
 Use `npm ci`, copy `.env.example` to `.env`, and run `npm run dev`. `npm test` covers allocation, exact USDC conversions, teammate input validation, payment previews, and transaction result handling; `npm run build` checks the production bundle. Browser wallet signing still requires the user's own wallet.
 
-Income allocation and automatic personal savings for freelance teams.
+PromisePay helps medium-sized businesses turn project payments into team allocations, business reserves, and available working capital. Agencies, contractors, service companies, and production businesses are the primary audience; creators and larger organisations are additional audiences. Dollar examples represent USDC amounts, not bank-dollar payment support. Business roles, multiple approvers, accounting integrations, and production-scale indexing are future work.
 
 ## Current status
 Pre-hackathon preparation, created October 26, 2026. Do not represent this work as created during November 1–14. Confirm eligibility with organizers before using pre-event implementation in a submission.
 
-Implemented source: deterministic accounting; agreement acceptance; authenticated NEP-141 receiver; contributor claims; personal liquid savings; callback-based withdrawal restoration; testnet/mainnet configuration; wallet login and a simplified workspace. Testnet contract: `promisepay-mikecity.testnet`, initialized with Circle testnet USDC. [Deployment transaction](https://testnet.nearblocks.io/txns/13yVg9X8un3KhxqxaL91BS6ZoJeMew5nzhSX1gKgPkXe). Mainnet has no deployed contract. Yield is disabled.
+Implemented source: deterministic accounting; agreement acceptance; authenticated NEP-141 receiver; contributor claims; personal liquid savings; callback-based withdrawal restoration; testnet/mainnet configuration; wallet login and a simplified workspace. Testnet contract: `promisepay-mikecity.testnet`, initialized with Circle testnet USDC. [Deployment transaction](https://testnet.nearblocks.io/txns/13yVg9X8un3KhxqxaL91BS6ZoJeMew5nzhSX1gKgPkXe). Mainnet has no deployed contract. Optional wallet-owned RHEA lending is enabled on testnet.
 
 ## Run
 `npm ci`, `npm test`, `npm run dev`. Production frontend: `npm run build`. Copy `.env.example` to `.env` to use the verified testnet contract and token accounts. Mainnet accounts must be independently verified and configured before use. Empty configuration blocks wallet actions. See docs/DEPLOYMENT.md.
@@ -34,7 +34,7 @@ Local sandbox execution was attempted but stopped before contract execution: nea
 On Linux x86_64: `cd contract && npm ci --ignore-scripts`, then from the repository root run `bash scripts/install-toolchain.sh`, `npm run build --prefix contract`, and `node scripts/verify-contract.mjs`. The recovery installer downloads the SDK's pinned official compiler assets and verifies their SHA-256 hashes. CI also runs the frontend build, unit tests, and sandbox scenario. A successful CI run uploads the WASM as an artifact; no deployment or wallet secrets are used.
 
 ## Demo
-The demo is separate from onchain balances. An example 100 USDC payment with 20 USDC owed to a team and a 5% savings rate allocates 20 to the team, 4 to savings, and 76 to the owner. No yield is simulated. The workspace uses configured testnet accounts and explicit wallet approval.
+The demo is separate from onchain balances. An example $10,000 USDC payment with $6,000 owed to recipients and a 10% reserve rate allocates $6,000 to the team, $400 to reserves, and $3,600 to available working capital. No yield is simulated. The workspace uses configured testnet accounts and explicit wallet approval.
 
 ## Allocation policy
 Recipients have fixed entitlements accepted before funding. Each receipt funds outstanding commitments proportionally, with largest-remainder integer rounding. Only the remainder belongs to the owner and is eligible for their chosen savings rate. Savings never reduce another recipient's entitlement. This prototype implements one policy, not arbitrary priority schedules.
@@ -42,7 +42,7 @@ Recipients have fixed entitlements accepted before funding. Each receipt funds o
 ## Contract architecture and remaining work
 NEP-141 token receiver; agreement acceptance by each participant; immutable activated allocations; user-owned savings balances; pull-based claims with failed-transfer restoration; asynchronous callback accounting and replay protection. A verified yield adapter is optional. If a yield deposit fails, funds remain attributed to liquid savings. Yield must not include unpaid contributor funds.
 
-RHEA is a candidate, not an active integration. Verify token contracts, deposit/withdraw interfaces, active market status and liquidity before implementation. Do not display invented APY or guarantee instant withdrawals. Keep liquid savings separate from yield positions.
+RHEA is integrated as an optional wallet-owned testnet lending position, separate from the PromisePay ledger. Do not display invented APY or guarantee instant withdrawals. Keep liquid savings separate from yield positions.
 
 ## Limits
 Only funds explicitly routed through the app can be allocated. No arbitrary wallet interception. Client nonpayment remains possible. An allocation is an accounting entitlement until a real payout succeeds. Demo amounts are simulated. Workspace balances represent actual testnet tokens with no real-money value.
@@ -63,4 +63,4 @@ Pinned market: `contract.1689937928.burrow.testnet`; only the configured Circle 
 
 Primary references: [RHEA SDK](https://github.com/burrowHQ/burrow-sdk-python), [contract API](https://github.com/NearDeFi/burrowland/blob/main/contract/API.md), [token receiver implementation](https://github.com/NearDeFi/burrowland/blob/main/contract/src/fungible_token.rs), [RHEA withdrawal implementation](https://github.com/burrowHQ/burrow-cash/blob/main/store/actions/withdraw.ts).
 
-Validation: automated precision, deposit-refund, transfer-proof and DOM review tests; read-only live market/config checks. A real wallet deposit and withdrawal must still be tested by the user; automated tests do not prove protocol safety. Use test tokens only.
+Validation: automated precision, deposit-refund, transfer-proof and DOM review tests; read-only live market/config checks. The user completed a $0.05 test USDC deposit and withdrawal on November 11, 2026, reported the funds returned to their wallet, and provided screenshots showing the supplied balance change from 0.05 to 0.00 USDC. Automated tests do not prove protocol safety. Use test tokens only.
