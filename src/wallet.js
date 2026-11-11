@@ -44,7 +44,8 @@ export async function disconnect() {
 export async function rpc(method, params) {
   const config = getConfig();
   if (!config.configured) throw Error('Choose a configured network first.');
-  return readRpc(config.rpc, method, params);
+  const endpoint=activeNetwork==='testnet'&&!import.meta.env.DEV?'/api/near':config.rpc;
+  return readRpc(endpoint, method, params);
 }
 export async function tokenView(method_name, args = {}, account_id = getConfig().contractId) {
   const result = await rpc('query', {request_type:'call_function',account_id,method_name,args_base64:Buffer.from(JSON.stringify(args)).toString('base64'),finality:'final'});
