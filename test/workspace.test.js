@@ -11,7 +11,7 @@ import * as rhea from '../src/rhea.js';
 const plans=[{id:'0',title:'Independent income',owner:'owner.testnet',commitments:[],accepted:[],paid:[],savings_bps:500},{id:'1',title:'Video project',owner:'owner.testnet',commitments:[{account_id:'teammate.testnet',amount:'1000000'}],accepted:[],paid:['0'],savings_bps:500}];
 async function workspace(account='owner.testnet',lending=false) {
   const dom=new JSDOM(await readFile(new URL('../index.html',import.meta.url),'utf8'),{url:'https://workspace.example/#dashboard',runScripts:'outside-only'});
-  const w=dom.window;let listener;const requests=[];
+  const w=dom.window;let listener,marketFailures=0;const requests=[];
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
   w.HTMLDialogElement.prototype.close=function(){this.open=false;};
   w.scrollTo=()=>{};
@@ -22,6 +22,8 @@ async function workspace(account='owner.testnet',lending=false) {
     getConfig:()=>({contractId:'contract.testnet',tokenId:lending?rhea.USDC:'usdc.testnet',explorer:'https://testnet.nearblocks.io'}),
     view:async(method,args)=>method==='get_agreement'?structuredClone(plans[Number(args.id)]||null):{available:'950000',savings:'50000'},
     tokenView:async(method)=>{
+      if(lending==='retry'&&method==='get_asset'&&marketFailures++===0)throw Error('NEAR RPC 429');
+      if(lending==='new'&&(method==='get_account'||method==='storage_balance_of'))return null;
       if(lending&&method==='get_asset')return {token_id:rhea.USDC,config:{extra_decimals:12,can_deposit:true,can_withdraw:true},supply_apr:'0.0000022283666'};
       if(lending&&method==='get_account')return {supplied:[{token_id:rhea.USDC,balance:'1000000000000000000'}]};
       return {total:'1250000000000000000000',available:'0'};
@@ -108,4 +110,23 @@ test('RHEA shows separate live lending balance and reviews the first step withou
 });
 test('RHEA is disabled for an unverified token configuration',async()=>{
   const app=await workspace();try{assert.equal(app.doc.getElementById('earnStart').disabled,true);assert.equal(app.doc.getElementById('earnWithdraw').disabled,true);}finally{app.close();}
+});
+
+test('new RHEA account displays zero and offers registration rather than failing',async()=>{
+ const app=await workspace('owner.testnet','new');try{
+  assert.equal(app.doc.getElementById('rheaBalance').textContent,'0.00 USDC');
+  assert.equal(app.doc.getElementById('earnStart').disabled,false);
+  assert.equal(app.doc.getElementById('rheaRetry').hidden,true);
+ }finally{app.close();}
+});
+test('failed market read stays disabled and user can retry without a wallet request',async()=>{
+ const app=await workspace('owner.testnet','retry');try{
+  assert.equal(app.doc.getElementById('earnStart').disabled,true);
+  assert.match(app.doc.getElementById('rheaError').textContent,/market: NEAR RPC 429/);
+  assert.equal(app.doc.getElementById('rheaRetry').hidden,false);
+  app.doc.getElementById('rheaRetry').click();await app.settle();
+  assert.equal(app.doc.getElementById('rheaRetry').hidden,true);
+  assert.equal(app.doc.getElementById('earnStart').disabled,false);
+  assert.equal(app.requests.length,0);
+ }finally{app.close();}
 });

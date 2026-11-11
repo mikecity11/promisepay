@@ -203,28 +203,36 @@ function showDemo(){
 }
 
 
-let rheaState={asset:null,supplied:'0',registered:false,mode:'start'};
+let rheaState={asset:null,supplied:'0',registered:false,mode:'start',loading:false};
 function pendingKey(account=state.account,network=state.network){return `promisepay-rhea-pending:${network}:${account}`;}
 function pendingAmount(){try{return localStorage.getItem(pendingKey())||'';}catch{return '';}}
-function resetRhea(){rheaState.asset=null;rheaState.supplied='0';$('rheaBalance').textContent='—';$('rheaRate').textContent='—';$('rheaStatus').textContent='Connect your wallet to check RHEA.';for(const id of ['earnStart','earnWithdraw'])$(id).disabled=true;$('earnSupply').hidden=true;}
+function resetRhea(){rheaState.asset=null;rheaState.supplied='0';$('rheaBalance').textContent='—';$('rheaRate').textContent='—';$('rheaStatus').textContent='Connect your wallet to check RHEA.';for(const id of ['earnStart','earnWithdraw'])$(id).disabled=true;$('earnSupply').hidden=true;$('rheaRetry').hidden=true;$('rheaDetails').hidden=true;}
 async function refreshRhea(){
+  if(rheaState.loading)return;
   const account=state.account,generation=state.generation;
   if(!account||state.network!=='testnet'||getConfig().tokenId!==USDC){resetRhea();return;}
+  rheaState.loading=true;$('rheaRetry').disabled=true;$('rheaStatus').textContent='Checking the lending market…';
+  let stage='market';
   try{
-    const [asset,position,storage]=await Promise.all([tokenView('get_asset',{token_id:USDC},RHEA),tokenView('get_account',{account_id:account},RHEA),tokenView('storage_balance_of',{account_id:account},RHEA)]);
+    const asset=await tokenView('get_asset',{token_id:USDC},RHEA);
+    stage='wallet position';const position=await tokenView('get_account',{account_id:account},RHEA);
+    stage='wallet registration';const storage=await tokenView('storage_balance_of',{account_id:account},RHEA);
     if(generation!==state.generation)return;
     if(asset.token_id!==USDC||!asset.config||!Number.isInteger(asset.config.extra_decimals))throw Error('This lending market is unavailable.');
     const supplied=suppliedAmount(position,USDC,asset.config.extra_decimals);
     rheaState={...rheaState,asset,supplied,registered:!!storage};
+    $('rheaRetry').hidden=true;$('rheaDetails').hidden=true;
     $('rheaBalance').textContent=usdc(supplied);$('rheaRate').textContent=aprLabel(asset.supply_apr);
     const pending=pendingAmount();$('earnSupply').hidden=!pending;$('earnSupply').disabled=state.busy||!asset.config.can_deposit;
     $('earnStart').disabled=state.busy||!state.loaded||BigInt(state.balances.savings)===0n||!asset.config.can_deposit||!!pending;
     $('earnWithdraw').disabled=state.busy||BigInt(supplied)===0n||!asset.config.can_withdraw;
     $('rheaStatus').textContent=pending?`${usdc(pending)} moved to your wallet for lending. Continue the deposit when ready.`:'Live testnet market. Rates change; returns are not guaranteed.';
-  }catch(e){if(generation===state.generation){resetRhea();$('rheaStatus').textContent='RHEA could not be loaded. Refresh before continuing.';}}
+  }catch(e){if(generation===state.generation){resetRhea();$('rheaStatus').textContent='We couldn’t check RHEA. Your funds have not moved. Try again.';$('rheaRetry').hidden=false;$('rheaDetails').hidden=false;$('rheaError').textContent=`Checking ${stage}: ${e.message||String(e)}`;}}
+  finally{rheaState.loading=false;$('rheaRetry').disabled=false;}
 }
 async function openEarn(mode){
   if(!requireAccount()||state.busy)return;
+  if(rheaState.loading){notice('The lending market is still loading. Try again in a moment.');return;}
   await refreshRhea();if(!rheaState.asset)return;
   rheaState.mode=mode;
   if(mode!=='withdraw'&&!rheaState.registered){
@@ -239,6 +247,7 @@ async function openEarn(mode){
   $('earnDescription').textContent=mode==='withdraw'?'Funds return to your wallet. Availability depends on market liquidity.':mode==='supply'?'Approve lending from your wallet to your own RHEA position. The rate is variable.':'Step 1 of 2. Withdraw savings to your wallet. Then choose Continue deposit to supply them to RHEA.';
   $('earnAmount').value=editableAmount(amount);$('earnError').textContent='';openDialog('earnDialog');
 }
+$('rheaRetry').onclick=()=>refreshRhea();
 $('earnStart').onclick=()=>openEarn('start');$('earnSupply').onclick=()=>openEarn('supply');$('earnWithdraw').onclick=()=>openEarn('withdraw');
 $('earnForm').onsubmit=async event=>{
   event.preventDefault();try{

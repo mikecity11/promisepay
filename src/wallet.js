@@ -1,4 +1,5 @@
 import './polyfills.js';
+import {readRpc} from './rpc.js';
 import { actionCreators } from '@near-js/transactions';
 import { setupWalletSelector } from '@near-wallet-selector/core';
 import { setupModal } from '@near-wallet-selector/modal-ui';
@@ -43,11 +44,7 @@ export async function disconnect() {
 export async function rpc(method, params) {
   const config = getConfig();
   if (!config.configured) throw Error('Choose a configured network first.');
-  const response = await fetch(config.rpc, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:'promisepay',method,params})});
-  if (!response.ok) throw Error(`NEAR RPC ${response.status}`);
-  const data = await response.json();
-  if (data.error) throw Error(data.error.data || data.error.message || 'NEAR RPC request failed');
-  return data.result;
+  return readRpc(config.rpc, method, params);
 }
 export async function tokenView(method_name, args = {}, account_id = getConfig().contractId) {
   const result = await rpc('query', {request_type:'call_function',account_id,method_name,args_base64:Buffer.from(JSON.stringify(args)).toString('base64'),finality:'final'});
